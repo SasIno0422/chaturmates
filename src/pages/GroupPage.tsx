@@ -26,12 +26,15 @@ import GroupMembers from "../components/Group/GroupMembers";
 import useSelfStudent from "../hooks/student/useSelfStudent";
 import { useQuery } from "@tanstack/react-query";
 import { getGroupByVanityUrl } from "../services/group";
+import useGroupJoin from '../hooks/group/useGroupJoin';
+import useGroupLeave from '../hooks/group/useGroupLeave';
 
 export default function GroupPage() {
   const rt = useIonRouter();
   const [show, close] = useIonLoading();
   const { student } = useSelfStudent();
   const { vanity_id } = useParams<{ vanity_id: string }>();
+
 
   const query = useQuery({
     queryKey: ["group", vanity_id],
@@ -46,17 +49,16 @@ export default function GroupPage() {
   console.log("admins", query.data?.admins);
 
   const [join, setJoin] = useState(true);
+  const { handleGroupJoin } = useGroupJoin(query.data?.group.id || 0);
+  const { handleGroupLeave } = useGroupLeave(query.data?.group.id || 0);
+
 
   useEffect(() => {
     const stud = query.data?.members?.all.find(
       (member) => member.student_id === student?.id
     );
-    if (stud) {
-      setJoin(true);
-    } else {
-      setJoin(false);
-    }
-  }, [query.data?.members]);
+    setJoin(!!stud); // Set join to true if the student is found, otherwise false
+  }, [query.data?.members, student?.id]);
 
   const handleBack = () => {
     if (rt.canGoBack()) {
@@ -65,10 +67,62 @@ export default function GroupPage() {
     rt.push("/discover", "back");
   };
 
-  const toggleJoin = () => {
-    setJoin(!join);
+  const joinGroup = async () => {
+    try {
+      // Call your API to join the group
+      const joinResult = await handleGroupJoin();
+
+      // Check the result and update the local state
+      if (joinResult.success) {
+        setJoin(true);
+        // Optionally, you can show a success notification
+        console.log(joinResult.message);
+      } else {
+        // Optionally, you can show an error notification
+        console.error('Error joining group:', joinResult.message);
+      }
+    } catch (error) {
+      console.error('Error joining group:', error);
+      // Handle error, show a notification, etc.
+    }
   };
 
+  const leaveGroup = async () => {
+    try {
+      if (!query.data) {
+        // Handle the case where query.data is undefined
+        console.error('Error leaving group: Query data is undefined');
+        // Optionally, show an error notification or perform other actions
+        return;
+      }
+
+      // Call your API to leave the group
+      const leaveResult = await handleGroupLeave();
+
+      // Check the result and update the local state
+      if (leaveResult.success) {
+        setJoin(false);
+        // Optionally, you can show a success notification
+        console.log(leaveResult.message);
+      } else {
+        // Log the entire leaveResult object for debugging
+        console.error('Error leaving group:', leaveResult);
+        // Optionally, you can show an error notification
+        console.error('Error leaving group:', leaveResult.message);
+      }
+    } catch (error) {
+      console.error('Error leaving group:', error);
+      // Handle error, show a notification, etc.
+    }
+  };
+
+  const toggleJoin = () => {
+    if (join) {
+      leaveGroup();
+    } else {
+      joinGroup();
+    }
+  };
   return (
     <IonPage>
       <IonContent fullscreen className="groupPage">
